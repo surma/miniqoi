@@ -3,17 +3,17 @@ const { instance } = await WebAssembly.instantiateStreaming(
   fetch("./main.wasm"),
 );
 
-const { memory, decode, output_start } = instance.exports;
-const start = 0;
+const { memory, decode, output_start, base } = instance.exports;
 const len = rawImage.byteLength;
 
 const mem8View = new Uint8Array(memory.buffer);
-const mem32View = new Uint32Array(memory.buffer);
-const imgView = mem8View.subarray(start, start + len);
+const imgView = mem8View.subarray(base.value, base.value + len);
 imgView.set(new Uint8Array(rawImage));
 
-console.log(decode(start, len));
+const output = decode();
+console.log({ output });
 
-console.log(mem32View[output_start.value / 4]);
-console.log(mem32View[output_start.value / 4 + 1]);
+const dataView = new DataView(memory.buffer);
+console.log(dataView.getUint32(output, true));
+console.log(dataView.getUint32(output + 4, true));
 // memory

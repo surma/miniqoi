@@ -23,7 +23,7 @@ try {
 const [width, height] = new Uint32Array(memory.buffer, 
   instance.exports.output_base.value);
 const data = new Uint8ClampedArray(memory.buffer, instance.exports.output_base.value + 8).subarray(0, width * height * 4);
-const imgData = new ImageData(width, height, data);
+const imgData = new ImageData(data, width, height);
 
 const cvs = document.createElement("canvas");
 document.body.append(cvs);

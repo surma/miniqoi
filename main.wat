@@ -85,6 +85,17 @@
 		(call $advance_iptr (i32.const 1))
 		(local.get $v)
 	)
+	
+	(func $next_u32
+		(result i32)
+		(local $v i32)
+
+		(local.set $v
+			(i32.load (global.get $iptr))
+		)
+		(call $advance_iptr (i32.const 4))
+		(local.get $v)
+	)
 
 	(func $next_i32_be
 		(result i32)
@@ -340,6 +351,12 @@
 		)
 	)
 
+	(func $qoi_op_rgba
+		(call $write_pixel
+			(call $next_u32)
+		)
+	)
+
 	(func $bucket_addr
 		(param $index i32)
 		(result i32)
@@ -388,6 +405,13 @@
 
 	(func $qoi_op_run
 		(param $ctr i32)
+
+		(local.set $ctr
+			(i32.add
+				(local.get $ctr)
+				(i32.const 1)
+			)
+		)
 
 		;; while($ctr > 0)
 		(block $loop_end
@@ -684,6 +708,18 @@
 			)
 			(then 
 				(call $qoi_op_rgb)
+				(return)
+			)
+		)
+
+		;; QOI_OP_RGBA
+		(if
+			(i32.eq
+				(local.get $block_header)
+				(i32.const 0xFF)
+			)
+			(then 
+				(call $qoi_op_rgba)
 				(return)
 			)
 		)

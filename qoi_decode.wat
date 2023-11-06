@@ -95,7 +95,7 @@
 		(call $advance_optr (i32.const 4))
 	)
 	
-	(func $next_u8
+	(func $read_u8
 		(result i32)
 		(local $v i32)
 
@@ -106,7 +106,7 @@
 		(local.get $v)
 	)
 	
-	(func $next_u32
+	(func $read_u32
 		(result i32)
 		(local $v i32)
 
@@ -117,7 +117,8 @@
 		(local.get $v)
 	)
 
-	(func $next_i32_be
+	;; Reads a big-endian u32
+	(func $read_u32_be
 		(result i32)
 		(local $i i32)
 		(local $v i32)
@@ -160,7 +161,7 @@
 		(param $expected i32)
 		(if
 			(i32.ne
-				(call $next_u8)
+				(call $read_u8)
 				(local.get $expected)
 			)
 			(then (call $abort))
@@ -187,18 +188,18 @@
 		;; Read width in big-endian from header
 		;; And write it to output
 		(call $write_u32
-			(call $next_i32_be)
+			;; Reads a big-endian u32
+			(call $read_u32_be)
 		)
 		;; Same for height
 		(call $write_u32
-			(call $next_i32_be)
+			;; Reads a big-endian u32
+			(call $read_u32_be)
 		)
-		;; Read channel
-		;; FIXME
-		(drop (call $next_u8))
-		;; Read colorspace
-		;; FIXME
-		(drop (call $next_u8))
+		;; Read and ignore channel
+		(drop (call $read_u8))
+		;; Read and ignore colorspace
+		(drop (call $read_u8))
 	)
 
 	(func $calc_hash
@@ -284,31 +285,6 @@
 		)
 	)
 
-	(func $to_f32
-		(param $v i32)
-		(result f32)
-
-		(f32.div
-			(f32.convert_i32_u (local.get $v))
-			(f32.const 255.0)
-		)
-	)
-
-	(func $from_f32
-		(param $v f32)
-		(result i32)
-
-		(i32.and
-			(i32.trunc_f32_u
-				(f32.mul
-					(local.get $v)
-					(f32.const 255.0)
-				)
-			)
-			(i32.const 0xFF)
-		)
-	)
-
 	(func $write_pixel
 		(param $pixel i32)
 
@@ -322,55 +298,28 @@
 	(func $qoi_op_rgb
 		(local $pixel i32)
 
-		;; 0xrr
+		;; Pretend there’s RGBA coming for a simpler read
 		(local.set $pixel
-			(call $next_u8)
+			(call $read_u32)
 		)
-		;; 0xrr0000gg
-		(local.set $pixel
-			(i32.or
-				(i32.rotr
-					(local.get $pixel)
-					(i32.const 8)
-				)
-				(call $next_u8)
-			)
-		)
-		;; 0xggrr00bb
-		(local.set $pixel
-			(i32.or
-				(i32.rotr
-					(local.get $pixel)
-					(i32.const 8)
-				)
-				(call $next_u8)
-			)
-		)
-		;; 0xbbggrraa
-		(local.set $pixel
-			(i32.or
-				(i32.rotr
-					(local.get $pixel)
-					(i32.const 8)
-				)
-				(i32.shr_u 
-					(call $get_last_pixel)
-					(i32.const 24)
-				)
-			)
-		)
-		;; 0xaabbggrr
+		;; and backtrack the iptr once
+		(call $advance_iptr (i32.const -1))
+		;; Copy alpha from previous pixel
 		(call $write_pixel
-			(i32.rotr
+			(call $set_byte_in_u32
 				(local.get $pixel)
-				(i32.const 8)
+				(i32.const 3)
+				(call $get_byte_in_u32
+					(call $get_last_pixel)
+					(i32.const 3)
+				)
 			)
 		)
 	)
 
 	(func $qoi_op_rgba
 		(call $write_pixel
-			(call $next_u32)
+			(call $read_u32)
 		)
 	)
 
@@ -620,7 +569,7 @@
 		;; and $db-$dg in the lower nibble. 
 		;; Both values are 4-bit signed integers with a bias of 8.
 		(local.set $dr
-			(call $next_u8)
+			(call $read_u8)
 		)
 
 		;; Extract $db
@@ -711,7 +660,7 @@
 		(local $header_value i32)
 
 		(local.set $block_header
-			(call $next_u8)
+			(call $read_u8)
 		)
 
 		;; QOI_OP_RGB

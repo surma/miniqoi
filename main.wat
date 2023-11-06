@@ -27,6 +27,15 @@
 		)
 	)
 
+	(func $mem_size
+		(result i32)
+
+		(i32.mul
+			(memory.size)
+			(i32.const 65536)
+		)
+	)
+
 	(func $advance_optr
 		(param $delta i32)
 
@@ -35,6 +44,14 @@
 				(global.get $optr)
 				(local.get $delta)
 			)
+		)
+
+		(if
+			(i32.ge_u
+				(global.get $optr)
+				(call $mem_size)
+			)
+			(then (drop (memory.grow (i32.const 1))))
 		)
 	)
 
@@ -372,13 +389,6 @@
 	(func $qoi_op_run
 		(param $ctr i32)
 
-		;; Strip first two biths to get run length
-		(local.set $ctr
-			(i32.and
-				(local.get $ctr)
-				(i32.const 0x3f)
-			)
-		)
 		;; while($ctr > 0)
 		(block $loop_end
 			(loop $loop
@@ -400,8 +410,267 @@
 		)
 	)
 
+	(func $get_byte_in_u32
+		(param $v i32)
+		(param $idx i32)
+		(result i32)
+
+		(i32.and
+			(i32.shr_u
+				(local.get $v)
+				(i32.mul
+					(local.get $idx)
+					(i32.const 8)
+				)
+			)
+			(i32.const 0xFF)
+		)
+	)
+
+	(func $set_byte_in_u32
+		(param $v i32)
+		(param $idx i32)
+		(param $b i32)
+		(result i32)
+
+		(local $shift i32)
+		(local $mask i32)
+
+		;; Bit shift
+		(local.set $shift
+			(i32.mul
+				(local.get $idx)
+				(i32.const 8)
+			)
+		)
+		;; Mask of the shape 0b00..00ffff_ffff00..000
+		(local.set $mask
+			(i32.shl
+				(i32.const 0xff)
+				(local.get $shift)
+			)
+		)
+
+		;; Set byte to zero
+		(local.set $v
+			(i32.and
+				(local.get $v)
+				(call $not
+					(local.get $mask)
+				)
+			)
+		)
+
+		;; Put new value in
+		(i32.or
+			(local.get $v)
+			(i32.shl
+				(i32.and
+					(local.get $b)
+					(i32.const 0xFF)
+				)
+				(local.get $shift)
+			)
+		)
+	)
+
+	(func $qoi_op_diff
+		(param $deltas i32)
+
+		(local $last_pixel i32)
+
+		(local.set $last_pixel (call $get_last_pixel))
+
+		;; Apply dr
+		(local.set $last_pixel
+			(call $set_byte_in_u32
+				(local.get $last_pixel)
+				(i32.const 0)
+				(i32.add
+					(call $get_byte_in_u32
+						(local.get $last_pixel)
+						(i32.const 0)
+					)
+					(i32.sub
+						(i32.and
+							(local.get $deltas)
+							(i32.const 0x03)
+						)
+						(i32.const 2)
+					)
+				)
+			)
+		)
+
+		;; Shift so dr gets replaced with dg
+		(local.set $deltas
+			(i32.shr_u
+				(local.get $deltas)
+				(i32.const 2)
+			)
+		)
+		(local.set $last_pixel
+			(call $set_byte_in_u32
+				(local.get $last_pixel)
+				(i32.const 1)
+				(i32.add
+					(call $get_byte_in_u32
+						(local.get $last_pixel)
+						(i32.const 1)
+					)
+					(i32.sub
+						(i32.and
+							(local.get $deltas)
+							(i32.const 0x03)
+						)
+						(i32.const 2)
+					)
+				)
+			)
+		)
+
+		;; Shift so dg gets replaced with db
+		(local.set $deltas
+			(i32.shr_u
+				(local.get $deltas)
+				(i32.const 2)
+			)
+		)
+		(local.set $last_pixel
+			(call $set_byte_in_u32
+				(local.get $last_pixel)
+				(i32.const 2)
+				(i32.add
+					(call $get_byte_in_u32
+						(local.get $last_pixel)
+						(i32.const 2)
+					)
+					(i32.sub
+						(i32.and
+							(local.get $deltas)
+							(i32.const 0x03)
+						)
+						(i32.const 2)
+					)
+				)
+			)
+		)
+
+		(call $write_pixel (local.get $last_pixel))
+	)
+
+	(func $qoi_op_luma
+		(param $dg i32)
+
+		(local $dr i32)
+		(local $db i32)
+		(local $last_pixel i32)
+
+		(local.set $last_pixel
+			(call $get_last_pixel)
+		)
+
+		;; $dg is 6-bit signed integer with a bias of 32
+		(local.set $dg
+			(i32.sub
+				(local.get $dg)
+				(i32.const 32)
+			)
+		)
+
+		;; For now $dr contains $dr-$dg in the upper nibble
+		;; and $db-$dg in the lower nibble. 
+		;; Both values are 4-bit signed integers with a bias of 8.
+		(local.set $dr
+			(call $next_u8)
+		)
+
+		;; Extract $db
+		(local.set $db
+			;; Add $dg
+			(i32.add
+				;; Add bias (0 means -8, 1 means -7 etc)
+				(i32.sub
+					;; Lower nibble
+					(i32.and
+						(local.get $dr)
+						(i32.const 0x0F)
+					)
+					(i32.const 8)
+				)
+				(local.get $dg)
+			)
+		)
+
+		;; Same for $dr
+		(local.set $dr
+			;; Add $dg
+			(i32.add
+				;; Add bias (0 means -8, 1 means -7 etc)
+				(i32.sub
+					;; Lower nibble
+					(i32.shr_u
+						(local.get $dr)
+						(i32.const 4)
+					)
+					(i32.const 8)
+				)
+				(local.get $dg)
+			)
+		)
+
+		;; Add $dr to old pixel’s red value
+		(local.set $last_pixel
+			(call $set_byte_in_u32
+				(local.get $last_pixel)
+				(i32.const 0)
+				(i32.add
+					(call $get_byte_in_u32
+						(local.get $last_pixel)
+						(i32.const 0)
+					)
+					(local.get $dr)
+				)
+			)
+		)
+
+		;; Add $dg to old pixel’s green value
+		(local.set $last_pixel
+			(call $set_byte_in_u32
+				(local.get $last_pixel)
+				(i32.const 1)
+				(i32.add
+					(call $get_byte_in_u32
+						(local.get $last_pixel)
+						(i32.const 1)
+					)
+					(local.get $dg)
+				)
+			)
+		)
+
+		;; Add $db to old pixel’s blue value
+		(local.set $last_pixel
+			(call $set_byte_in_u32
+				(local.get $last_pixel)
+				(i32.const 2)
+				(i32.add
+					(call $get_byte_in_u32
+						(local.get $last_pixel)
+						(i32.const 2)
+					)
+					(local.get $db)
+				)
+			)
+		)
+
+		;; Alpha remains unchanged
+		(call $write_pixel (local.get $last_pixel))
+	)
+
 	(func $decode_block
 		(local $block_header i32)
+		(local $header_value i32)
 
 		(local.set $block_header
 			(call $next_u8)
@@ -418,16 +687,53 @@
 				(return)
 			)
 		)
+
+		;; Ops below only use the leading 2 bits 
+
+		;; Strip the leading 2 bits and store the rest as value
+		(local.set $header_value
+			(i32.and
+				(local.get $block_header)
+				(i32.const 0x3F)
+			)
+		)
+
+		(local.set $block_header
+			(i32.and
+				(local.get $block_header)
+				(i32.const 0xC0)
+			)
+		)
+		
 		;; QOI_OP_INDEX
 		(if
-			(i32.eqz
-				(i32.and
-					(local.get $block_header)
-					(i32.const 0xC0)
-				)
+			(i32.eqz (local.get $block_header))
+			(then 
+				(call $qoi_op_index (local.get $header_value))
+				(return)
+			)
+		)
+
+		;; QOI_OP_DIFF
+		(if
+			(i32.eq
+				(i32.const 0x40)
+				(local.get $block_header)
 			)
 			(then 
-				(call $qoi_op_index (local.get $block_header))
+				(call $qoi_op_diff (local.get $header_value))
+				(return)
+			)
+		)
+
+		;; QOI_OP_LUMA
+		(if
+			(i32.eq
+				(i32.const 0x80)
+				(local.get $block_header)
+			)
+			(then 
+				(call $qoi_op_luma (local.get $header_value))
 				(return)
 			)
 		)
@@ -436,13 +742,10 @@
 		(if
 			(i32.eq
 				(i32.const 0xC0)
-				(i32.and
-					(local.get $block_header)
-					(i32.const 0xC0)
-				)
+				(local.get $block_header)
 			)
 			(then 
-				(call $qoi_op_run (local.get $block_header))
+				(call $qoi_op_run (local.get $header_value))
 				(return)
 			)
 		)

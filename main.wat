@@ -1,5 +1,4 @@
 (module
-	(func $rerender (import "env" "rerender"))
 	;; Memory layout:
 	;; |-------+------------+------------------+--------
 	;; | input | last pixel | pixelbuckets[64] | output
@@ -601,15 +600,15 @@
 
 		(local.set $last_pixel (call $get_last_pixel))
 
-		;; Apply dr
+		;; Apply db
 		(local.set $last_pixel
 			(call $set_byte_in_u32
 				(local.get $last_pixel)
-				(i32.const 0)
+				(i32.const 2)
 				(i32.add
 					(call $get_byte_in_u32
 						(local.get $last_pixel)
-						(i32.const 0)
+						(i32.const 2)
 					)
 					(i32.sub
 						(i32.and
@@ -622,7 +621,7 @@
 			)
 		)
 
-		;; Shift so dr gets replaced with dg
+		;; Shift so db gets replaced with dg
 		(local.set $deltas
 			(i32.shr_u
 				(local.get $deltas)
@@ -649,7 +648,7 @@
 			)
 		)
 
-		;; Shift so dg gets replaced with db
+		;; Shift so dg gets replaced with dr
 		(local.set $deltas
 			(i32.shr_u
 				(local.get $deltas)
@@ -659,11 +658,11 @@
 		(local.set $last_pixel
 			(call $set_byte_in_u32
 				(local.get $last_pixel)
-				(i32.const 2)
+				(i32.const 0)
 				(i32.add
 					(call $get_byte_in_u32
 						(local.get $last_pixel)
-						(i32.const 2)
+						(i32.const 0)
 					)
 					(i32.sub
 						(i32.and
@@ -728,7 +727,7 @@
 			(i32.add
 				;; Add bias (0 means -8, 1 means -7 etc)
 				(i32.sub
-					;; Lower nibble
+					;; Higher nibble
 					(i32.shr_u
 						(local.get $dr)
 						(i32.const 4)
@@ -929,7 +928,6 @@
 		(call $decode_header)
 		(block $decode_loop_done
 			(loop $decode_loop
-				(call $rerender)
 				(call $decode_block)
 				(br_if $decode_loop_done
 					(i32.eq

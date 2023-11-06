@@ -3,7 +3,7 @@
 
 	;; Memory layout:
 	;; |-------+------------+------------------+--------
-	;; | input | last pixel | pixelbuckets[64] | output
+	;; | input | last pixel |    index[64]     | output
 	;; |-------|------------|------------------|-------
 	;; 0      $base      base + 4    base + 4 + 64 *4
 	(memory $mem (export "memory") 1)
@@ -177,36 +177,6 @@
 		)
 	)
 	
-	;; Returns the next address equal or larger than 
-	;; $addr that has 2^$align alignment.
-	(func $align
-		(param $addr i32)
-		(param $align i32) ;; Should prob only be 1, 2 or 3
-		(result i32)
-
-		(local $mask i32)
-
-		(local.set $mask
-			(i32.sub
-				(i32.shl
-					(i32.const 1)
-					(local.get $align)
-				)
-				(i32.const 1)
-			)
-		)
-
-		(i32.and
-			(i32.add
-				(local.get $addr)
-				(local.get $mask)
-			)
-			(call $not
-				(local.get $mask)
-			)
-		)
-	)
-
 	(func $decode_header
 		;; Assert first 4 bytes are "qoif"
 		(call $assert_next_u8 (i32.const 0x71))
@@ -339,84 +309,13 @@
 		)
 	)
 
-	(func $premultiply
-		(param $pixel i32)
-		(result i32)
-
-		(local $alpha f32)
-
-		(local.set $alpha
-			(call $to_f32
-				(call $get_byte_in_u32
-					(local.get $pixel)
-					(i32.const 3)
-				)
-			)
-		)
-
-		(local.set $pixel
-			(call $set_byte_in_u32
-				(local.get $pixel)
-				(i32.const 0)
-				(call $from_f32
-					(f32.mul
-						(call $to_f32
-							(call $get_byte_in_u32
-								(local.get $pixel)
-								(i32.const 0)
-							)
-						)
-						(local.get $alpha)
-					)
-				)
-			)
-		)
-		(local.set $pixel
-			(call $set_byte_in_u32
-				(local.get $pixel)
-				(i32.const 1)
-				(call $from_f32
-					(f32.mul
-						(call $to_f32
-							(call $get_byte_in_u32
-								(local.get $pixel)
-								(i32.const 1)
-							)
-						)
-						(local.get $alpha)
-					)
-				)
-			)
-		)
-		(local.set $pixel
-			(call $set_byte_in_u32
-				(local.get $pixel)
-				(i32.const 2)
-				(call $from_f32
-					(f32.mul
-						(call $to_f32
-							(call $get_byte_in_u32
-								(local.get $pixel)
-								(i32.const 2)
-							)
-						)
-						(local.get $alpha)
-					)
-				)
-			)
-		)
-		(local.get $pixel)
-	)
-
 	(func $write_pixel
 		(param $pixel i32)
 
 		(call $set_last_pixel (local.get $pixel))
 		(call $update_pixel_bucket (local.get $pixel))
 		(call $write_u32 
-			(call $premultiply
-				(local.get $pixel)
-			)
+			(local.get $pixel)
 		)
 	)
 
@@ -873,10 +772,16 @@
 
 		(global.set $data_len (local.get $data_len))
 		(global.set $iptr (i32.const 0))
+		;; Set the base at 4-byte aligned address
 		(global.set $base 
-			(call $align
-				(local.get $data_len)
-				(i32.const 2)
+			(i32.add
+				(i32.and 
+					(local.get $data_len)
+					(call $not
+						(i32.const 0x3)
+					)
+				)
+				(i32.const 4)
 			)
 		)
 
@@ -885,12 +790,9 @@
 		;; Last pixel: 4
 		;; Total: 260
 		(global.set $output_base
-			(call $align
-				(i32.add
-					(global.get $base)
-					(i32.const 260)
-				)
-				(i32.const 2)
+			(i32.add
+				(global.get $base)
+				(i32.const 260)
 			)
 		)
 		(call $set_last_pixel (i32.const 0xff000000))

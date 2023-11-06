@@ -1,4 +1,4 @@
-.PHONEY: all
+.PHONEY: all clean
 .PRECIOUS: %.debug.wasm
 
 all: main.wasm
@@ -7,4 +7,7 @@ all: main.wasm
 	wat2wasm --debug-names $^ -o $@
 
 %.wasm: %.debug.wasm
-	wasm-opt --strip-debug -Oz -o $@ $^
+	wasm-opt --strip-debug -O3 -o $@ $^
+
+clean:
+	@rm -rf *.wasm

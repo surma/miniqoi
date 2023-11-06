@@ -9,10 +9,28 @@ const len = rawImage.byteLength;
 const imgView = new Uint8Array(memory.buffer);
 imgView.set(new Uint8Array(rawImage));
 
-const output = decode(rawImage.byteLength);
-console.log({output});
+try {
+  const output = decode(rawImage.byteLength);
+  console.log({output});
+} catch(e) {
+  console.error(e);
+  console.log({
+    iptr: instance.exports.iptr.value,
+    optr: instance.exports.optr.value,
+  });
+}
 
-const dataView = new DataView(memory.buffer);
-console.log(dataView.getUint32(output, true))
-console.log(dataView.getUint32(output + 4, true))
-// memory
+const [width, height] = new Uint32Array(memory.buffer, 
+  instance.exports.output_base.value);
+const data = new Uint8ClampedArray(memory.buffer, instance.exports.output_base.value + 8).subarray(0, width * height * 4);
+const imgData = new ImageData(width, height, data);
+
+const cvs = document.createElement("canvas");
+document.body.append(cvs);
+cvs.style.outline = '1px solid red';
+cvs.width = width;
+cvs.height = height;
+const ctx = cvs.getContext("2d");
+ctx.putImageData(imgData, 0, 0);
+
+

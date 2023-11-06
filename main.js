@@ -29,7 +29,6 @@ const imgData = new ImageData(data, width, height);
 
 const cvs = document.createElement("canvas");
 document.body.append(cvs);
-cvs.style.outline = '1px solid red';
 cvs.width = width;
 cvs.height = height;
 const ctx = cvs.getContext("2d");

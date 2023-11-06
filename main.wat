@@ -1,4 +1,5 @@
 (module
+	(func $rerender (import "env" "rerender"))
 	;; Memory layout:
 	;; |-------+------------+------------------+--------
 	;; | input | last pixel | pixelbuckets[64] | output
@@ -344,6 +345,40 @@
 							(call $get_byte_in_u32
 								(local.get $pixel)
 								(i32.const 0)
+							)
+						)
+						(local.get $alpha)
+					)
+				)
+			)
+		)
+		(local.set $pixel
+			(call $set_byte_in_u32
+				(local.get $pixel)
+				(i32.const 1)
+				(call $from_f32
+					(f32.mul
+						(call $to_f32
+							(call $get_byte_in_u32
+								(local.get $pixel)
+								(i32.const 1)
+							)
+						)
+						(local.get $alpha)
+					)
+				)
+			)
+		)
+		(local.set $pixel
+			(call $set_byte_in_u32
+				(local.get $pixel)
+				(i32.const 2)
+				(call $from_f32
+					(f32.mul
+						(call $to_f32
+							(call $get_byte_in_u32
+								(local.get $pixel)
+								(i32.const 2)
 							)
 						)
 						(local.get $alpha)
@@ -894,6 +929,7 @@
 		(call $decode_header)
 		(block $decode_loop_done
 			(loop $decode_loop
+				(call $rerender)
 				(call $decode_block)
 				(br_if $decode_loop_done
 					(i32.eq

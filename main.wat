@@ -1,16 +1,21 @@
 (module
+	(type $op_func (func (param i32)))
+
 	;; Memory layout:
 	;; |-------+------------+------------------+--------
 	;; | input | last pixel | pixelbuckets[64] | output
 	;; |-------|------------|------------------|-------
 	;; 0      $base      base + 4    base + 4 + 64 *4
-	
 	(memory $mem (export "memory") 1)
 	(global $base (mut i32) (i32.const 0))
 	(global $output_base (export "output_base") (mut i32) (i32.const 0))
 	(global $data_len  (mut i32) (i32.const 0))
 	(global $iptr (export "iptr") (mut i32) (i32.const 0))
 	(global $optr (export "optr") (mut i32) (i32.const 0))
+		
+	(table $op_table funcref
+		(elem $qoi_op_index $qoi_op_diff $qoi_op_luma $qoi_op_run)
+	)
 
 	(func $abort
 		unreachable
@@ -819,69 +824,19 @@
 			)
 		)
 
-		;; Ops below only use the leading 2 bits 
-
-		;; Strip the leading 2 bits and store the rest as value
-		(local.set $header_value
+		;; Use the first two bits as an index for the $op_table,
+		;; And use the remaining 6 bits as a parameter
+		(call_indirect $op_table 
+			(type $op_func)
 			(i32.and
 				(local.get $block_header)
 				(i32.const 0x3F)
 			)
-		)
-
-		(local.set $block_header
-			(i32.and
+			(i32.shr_u
 				(local.get $block_header)
-				(i32.const 0xC0)
+				(i32.const 6)
 			)
 		)
-		
-		;; QOI_OP_INDEX
-		(if
-			(i32.eqz (local.get $block_header))
-			(then 
-				(call $qoi_op_index (local.get $header_value))
-				(return)
-			)
-		)
-
-		;; QOI_OP_DIFF
-		(if
-			(i32.eq
-				(i32.const 0x40)
-				(local.get $block_header)
-			)
-			(then 
-				(call $qoi_op_diff (local.get $header_value))
-				(return)
-			)
-		)
-
-		;; QOI_OP_LUMA
-		(if
-			(i32.eq
-				(i32.const 0x80)
-				(local.get $block_header)
-			)
-			(then 
-				(call $qoi_op_luma (local.get $header_value))
-				(return)
-			)
-		)
-
-		;; QOI_OP_RUN
-		(if
-			(i32.eq
-				(i32.const 0xC0)
-				(local.get $block_header)
-			)
-			(then 
-				(call $qoi_op_run (local.get $header_value))
-				(return)
-			)
-		)
-		;; Invalid op code
-		(call $abort)
 	)
 
 	(func $get_last_pixel

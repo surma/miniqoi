@@ -1,7 +1,7 @@
 .PHONEY: all clean
 .PRECIOUS: %.debug.wasm
 
-all: main.wasm
+all: qoi_decode.wasm
 
 %.debug.wasm: %.wat
 	wat2wasm --debug-names $^ -o $@

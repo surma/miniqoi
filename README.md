@@ -1,7 +1,10 @@
-const qoiImageBuffer = new Uint8Array(
-  await fetch("./squoosh.qoi").then((r) => r.arrayBuffer()),
-);
+# Miniqoi
 
+Miniqoi is a small (~1.1K) decoder for the [QOI image format][qoi].
+
+## Usage
+
+```js
 const { instance } = await WebAssembly.instantiateStreaming(
   fetch("./qoi_decode.wasm"),
 );
@@ -26,3 +29,9 @@ const ctx = cvs.getContext("2d");
 ctx.canvas.width = imgData.width;
 ctx.canvas.height = imgData.height;
 ctx.putImageData(imgData, 0, 0);
+```
+
+[qoi]: https://qoiformat.org/
+
+---
+Apache-2.0

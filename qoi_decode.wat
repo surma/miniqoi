@@ -41,6 +41,16 @@
 		)
 	)
 
+	(func $mem_grow
+		(if
+			(i32.lt_s
+				(memory.grow (i32.const 1))
+				(i32.const 0)
+			)
+			(then (call $abort))
+		)
+	)
+
 	(func $advance_optr
 		(param $delta i32)
 
@@ -51,12 +61,17 @@
 			)
 		)
 
-		(if
-			(i32.ge_u
-				(global.get $optr)
-				(call $mem_size)
+		(loop $loop
+			(if
+				(i32.ge_u
+					(global.get $optr)
+					(call $mem_size)
+				)
+				(then 
+					(call $mem_grow)
+					(br $loop)
+				)
 			)
-			(then (drop (memory.grow (i32.const 1))))
 		)
 	)
 
@@ -792,7 +807,7 @@
 		(call $write_pixel (local.get $last_pixel))
 	)
 
-	(func $decode_block
+	(func $decode_chunk
 		(local $block_header i32)
 		(local $header_value i32)
 
@@ -878,12 +893,17 @@
 				(i32.const 2)
 			)
 		)
-		(global.set $optr (global.get $output_base))
 		(call $set_last_pixel (i32.const 0xff000000))
+
+		;; This grows memory as a side-effect
+		(global.set $optr (global.get $output_base))
+		(call $advance_optr (i32.const 0))
+		
+		;; Decode loop
 		(call $decode_header)
 		(block $decode_loop_done
 			(loop $decode_loop
-				(call $decode_block)
+				(call $decode_chunk)
 				(br_if $decode_loop_done
 					(i32.eq
 						(global.get $iptr)

@@ -7,4 +7,4 @@ all: main.wasm
 	wat2wasm --debug-names $^ -o $@
 
 %.wasm: %.debug.wasm
-	wasm-opt -Oz -o $@ $^
+	wasm-opt --strip-debug -Oz -o $@ $^

@@ -1,6 +1,8 @@
+const params = new URLSearchParams(location.search);
+const decoderSrc = params.has("debug") ? "./main.debug.wasm" : "./main.wasm";
 const rawImage = await fetch("./squoosh.qoi").then((r) => r.arrayBuffer());
 const { instance } = await WebAssembly.instantiateStreaming(
-  fetch("./main.wasm"),
+  fetch(decoderSrc),
 );
 
 const { memory, decode } = instance.exports;

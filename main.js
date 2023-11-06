@@ -12,8 +12,7 @@ const imgView = new Uint8Array(memory.buffer);
 imgView.set(new Uint8Array(rawImage));
 
 try {
-  const output = decode(rawImage.byteLength);
-  console.log({output});
+  decode(rawImage.byteLength);
 } catch(e) {
   console.error(e);
   console.log({

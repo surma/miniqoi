@@ -294,12 +294,76 @@
 		)
 	)
 
+	(func $to_f32
+		(param $v i32)
+		(result f32)
+
+		(f32.div
+			(f32.convert_i32_u (local.get $v))
+			(f32.const 255.0)
+		)
+	)
+
+	(func $from_f32
+		(param $v f32)
+		(result i32)
+
+		(i32.and
+			(i32.trunc_f32_u
+				(f32.mul
+					(local.get $v)
+					(f32.const 255.0)
+				)
+			)
+			(i32.const 0xFF)
+		)
+	)
+
+	(func $premultiply
+		(param $pixel i32)
+		(result i32)
+
+		(local $alpha f32)
+
+		(local.set $alpha
+			(call $to_f32
+				(call $get_byte_in_u32
+					(local.get $pixel)
+					(i32.const 3)
+				)
+			)
+		)
+
+		(local.set $pixel
+			(call $set_byte_in_u32
+				(local.get $pixel)
+				(i32.const 0)
+				(call $from_f32
+					(f32.mul
+						(call $to_f32
+							(call $get_byte_in_u32
+								(local.get $pixel)
+								(i32.const 0)
+							)
+						)
+						(local.get $alpha)
+					)
+				)
+			)
+		)
+		(local.get $pixel)
+	)
+
 	(func $write_pixel
 		(param $pixel i32)
 
 		(call $set_last_pixel (local.get $pixel))
 		(call $update_pixel_bucket (local.get $pixel))
-		(call $write_u32 (local.get $pixel))
+		(call $write_u32 
+			(call $premultiply
+				(local.get $pixel)
+			)
+		)
 	)
 
 	(func $qoi_op_rgb
@@ -395,10 +459,7 @@
 
 		(call $write_pixel
 			(call $get_bucket_pixel 
-				(i32.and
-					(local.get $header)
-					(i32.const 0x3f)
-				)
+				(local.get $header)
 			)
 		)
 	)
@@ -843,6 +904,7 @@
 				(br $decode_loop)
 			)
 		)
+		;; TODO: Verify trailer
 		(global.get $output_base)
 	)
 )

@@ -274,11 +274,11 @@
 		)
 	)
 
-	(func $update_pixel_bucket
+	(func $save_pixel_in_index
 		(param $pixel i32)
 
 		(i32.store
-			(call $bucket_addr
+			(call $index_addr
 				(call $calc_hash (local.get $pixel))
 			)
 			(local.get $pixel)
@@ -289,7 +289,7 @@
 		(param $pixel i32)
 
 		(call $set_last_pixel (local.get $pixel))
-		(call $update_pixel_bucket (local.get $pixel))
+		(call $save_pixel_in_index (local.get $pixel))
 		(call $write_u32 
 			(local.get $pixel)
 		)
@@ -323,7 +323,7 @@
 		)
 	)
 
-	(func $bucket_addr
+	(func $index_addr
 		(param $index i32)
 		(result i32)
 
@@ -339,28 +339,18 @@
 		)
 	)
 
-	(func $get_bucket_pixel
+	(func $get_pixel_from_index
 		(param $index i32)
 		(result i32)
 		
-		(i32.load (call $bucket_addr (local.get $index)))
-	)
-
-	(func $set_bucket_pixel
-		(param $index i32)
-		(param $pixel i32)
-		
-		(i32.store
-			(call $bucket_addr (local.get $index))
-			(local.get $pixel)
-		)
+		(i32.load (call $index_addr (local.get $index)))
 	)
 
 	(func $qoi_op_index
 		(param $header i32)
 
 		(call $write_pixel
-			(call $get_bucket_pixel 
+			(call $get_pixel_from_index 
 				(local.get $header)
 			)
 		)
@@ -749,7 +739,7 @@
 		;; This grows memory as a side-effect
 		(global.set $optr (global.get $output_base))
 		(call $advance_optr (i32.const 0))
-		
+
 		;; Decode loop
 		(call $decode_header)
 		(block $decode_loop_done

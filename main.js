@@ -6,11 +6,15 @@ const { instance } = await WebAssembly.instantiateStreaming(fetch(decoderSrc));
 const { memory, decode } = instance.exports;
 const len = rawImage.byteLength;
 
+memory.grow(Math.ceil(rawImage.byteLength / (64 * 1024)));
 const imgView = new Uint8Array(memory.buffer);
 imgView.set(new Uint8Array(rawImage));
 
 try {
+  const start = performance.now();
   decode(rawImage.byteLength);
+  const duration = performance.now() - start;
+  console.log({ duration });
   const [width, height] = new Uint32Array(
     memory.buffer,
     instance.exports.output_base.value,

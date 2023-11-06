@@ -1,8 +1,8 @@
 (module
 	(memory $mem (export "memory") 1)
-	(global $base (export "base") i32 (i32.const 64))
-	(global $iptr (mut i32) (i32.const 0))
+	(global $base (mut i32) (i32.const 0))
 	(global $data_len  (mut i32) (i32.const 0))
+	(global $iptr (mut i32) (i32.const 0))
 	(global $optr (mut i32) (i32.const 0))
 
 	(func $advance_iptr
@@ -181,22 +181,34 @@
 	)
 
 	(func (export "decode")
+		(param $data_len i32)
 		(result i32)
 
 		(local $output_base i32)
 		
-		(global.set $iptr (global.get $base))
+		(global.set $data_len (local.get $data_len))
+		(global.set $iptr (i32.const 0))
+		(global.set $base 
+			(call $align
+				(local.get $data_len)
+				(i32.const 2)
+			)
+		)
 
-		(global.set $optr
+		;; Leave space for the temporary data we need
+		;; 64 previous pixel values: 64 * 4 = 256
+		;; Last pixel: 4
+		;; Total: 260
+		(local.set $output_base
 			(call $align
 				(i32.add
 					(global.get $base)
-					(global.get $data_len)
+					(i32.const 260)
 				)
 				(i32.const 2)
 			)
 		)
-		(local.set $output_base (global.get $optr))
+		(global.set $optr (local.get $output_base))
 		(call $decode_header)
 		(local.get $output_base)
 	)

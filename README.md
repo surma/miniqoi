@@ -1,6 +1,6 @@
 # Miniqoi
 
-Miniqoi is a small (~1.1K) decoder for the [QOI image format][qoi].
+Miniqoi is a small (904B) decoder for the [QOI image format][qoi].
 
 ## Usage
 
